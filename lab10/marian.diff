@@ -1,0 +1,194 @@
+diff --git a/lab10/lab10.iml b/lab10/lab10.iml
+index cc3e70a..12b8dea 100644
+--- a/lab10/lab10.iml
++++ b/lab10/lab10.iml
+@@ -13,14 +13,6 @@
+         </sourceRoots>
+       </configuration>
+     </facet>
+-    <facet type="jpa" name="JPA">
+-      <configuration>
+-        <setting name="validation-enabled" value="true" />
+-        <setting name="provider-name" value="Hibernate" />
+-        <datasource-mapping />
+-        <naming-strategy-map />
+-      </configuration>
+-    </facet>
+   </component>
+   <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_11">
+     <output url="file://$MODULE_DIR$/target/classes" />
+@@ -31,7 +23,7 @@
+       <sourceFolder url="file://$MODULE_DIR$/src/test/java" isTestSource="true" />
+       <excludeFolder url="file://$MODULE_DIR$/target" />
+     </content>
+-    <orderEntry type="inheritedJdk" />
++    <orderEntry type="jdk" jdkName="11" jdkType="JavaSDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter-jdbc:2.4.1" level="project" />
+     <orderEntry type="library" name="Maven: org.springframework.boot:spring-boot-starter:2.4.1" level="project" />
+diff --git a/lab10/src/main/java/com/example/lab10/controller/OrderController.java b/lab10/src/main/java/com/example/lab10/controller/OrderController.java
+index 1095ad8..4b0202d 100644
+--- a/lab10/src/main/java/com/example/lab10/controller/OrderController.java
++++ b/lab10/src/main/java/com/example/lab10/controller/OrderController.java
+@@ -5,7 +5,10 @@ import com.example.lab10.exception.NoStockAvailableException;
+ import com.example.lab10.model.OrderItem;
+ import com.example.lab10.service.OrderService;
+ import org.springframework.http.ResponseEntity;
+-import org.springframework.web.bind.annotation.*;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
+ 
+ import java.util.List;
+ 
+@@ -28,13 +31,8 @@ public class OrderController {
+         }
+     }
+ 
+-    @PostMapping("/cancel/{id}")
+-    public ResponseEntity cancel(@PathVariable Integer id)    {
+-        try {
+-            return ResponseEntity.ok(orderService.cancelOrder(id));
+-        }   catch (RuntimeException e)   {
+-            return ResponseEntity.badRequest().body(e.getMessage());
+-        }
++    @PostMapping("/cancel")
++    public void cancel()    {
+ //        TODO: Tema 3: Implementati un endpoint responsabil cu anularea unei comanzi plasate:
+ //              - schimbati statusul comenzii
+ //              - actualizati stocul produselor corespunzator
+diff --git a/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java b/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java
+index 4746742..042ebe4 100644
+--- a/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java
++++ b/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java
+@@ -1,15 +1,12 @@
+ package com.example.lab10.repository;
+ 
+ import com.example.lab10.model.Order;
+-import org.springframework.dao.EmptyResultDataAccessException;
+-import org.springframework.data.repository.query.Param;
+ import org.springframework.jdbc.core.JdbcTemplate;
+ import org.springframework.jdbc.support.GeneratedKeyHolder;
+ import org.springframework.jdbc.support.KeyHolder;
+ import org.springframework.stereotype.Repository;
+ 
+ import java.sql.PreparedStatement;
+-import java.util.Optional;
+ 
+ @Repository
+ public class OrderRepository {
+@@ -20,31 +17,19 @@ public class OrderRepository {
+         this.jdbcTemplate = jdbcTemplate;
+     }
+ 
+-    public long save(Order order) {
++    public long save(Order order)   {
+         KeyHolder keyHolder = new GeneratedKeyHolder();
+         String insertSql = "INSERT INTO orders VALUES(NULL, ?, ?)";
+ 
+         jdbcTemplate.update(connection -> {
+-            PreparedStatement ps = connection.prepareStatement(insertSql, new String[]{"id"});
++            PreparedStatement ps = connection.prepareStatement(insertSql, new String[] {"id"});
+             ps.setDouble(1, order.getTotalPrice());
+             ps.setString(2, order.getStatus().toString());
+             return ps;
+         }, keyHolder);
+ 
+-        return keyHolder.getKey().longValue();
++        return (long) keyHolder.getKey().longValue();
+ 
+         //jdbcTemplate.update(insertSql, order.getTotalPrice(), order.getStatus().toString());
+     }
+-
+-    public Optional<Order> findOrderById(Integer orderId) {
+-        String sql = "select * from orders where id = ?";
+-
+-        try {
+-            Order order = jdbcTemplate.queryForObject(sql, Order.class);
+-            return Optional.ofNullable(order);
+-
+-        } catch (EmptyResultDataAccessException e) {
+-            return Optional.empty();
+-        }
+-    }
+ }
+diff --git a/lab10/src/main/java/com/example/lab10/service/OrderService.java b/lab10/src/main/java/com/example/lab10/service/OrderService.java
+index cc03277..16f2ae4 100644
+--- a/lab10/src/main/java/com/example/lab10/service/OrderService.java
++++ b/lab10/src/main/java/com/example/lab10/service/OrderService.java
+@@ -6,7 +6,6 @@ import com.example.lab10.exception.NoStockAvailableException;
+ import com.example.lab10.mapper.OrderMapper;
+ import com.example.lab10.model.Order;
+ import com.example.lab10.model.OrderItem;
+-import com.example.lab10.model.Status;
+ import com.example.lab10.repository.ItemRepository;
+ import com.example.lab10.repository.OrderRepository;
+ import com.example.lab10.repository.ProductRepository;
+@@ -14,7 +13,6 @@ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+ import java.util.List;
+-import java.util.Optional;
+ import java.util.stream.Collectors;
+ 
+ import static com.example.lab10.model.Status.ACTIVE;
+@@ -35,26 +33,26 @@ public class OrderService {
+     }
+ 
+     @Transactional
+-    public OrderDto save(List<OrderItem> items) {
++    public OrderDto save(List<OrderItem> items)   {
+         List<OrderItem> itemsToBeOrdered = items.stream()
+                 .map(
+-                        itemOrdered -> {
+-                            OrderItem item = new OrderItem();
+-                            var p = productRepository.getProductByName(itemOrdered.getProduct().getName());
+-                            if (!p.isEmpty()) {
+-                                item.setProduct(p.get());
+-                                item.setQuantity(itemOrdered.getQuantity());
+-                                if (itemOrdered.getQuantity() > item.getProduct().getAvailableStock()) {
+-                                    throw new NoStockAvailableException();
+-                                }
+-                            } else {
+-                                throw new NoProductFoundException();
+-                            }
+-                            return item;
++                itemOrdered -> {
++                    OrderItem item = new OrderItem();
++                    var p = productRepository.getProductByName(itemOrdered.getProduct().getName());
++                    if(!p.isEmpty()) {
++                        item.setProduct(p.get());
++                        item.setQuantity(itemOrdered.getQuantity());
++                        if(itemOrdered.getQuantity() > item.getProduct().getAvailableStock())   {
++                            throw new NoStockAvailableException();
+                         }
+-                ).collect(Collectors.toList());
++                    } else  {
++                        throw new NoProductFoundException();
++                    }
++                    return item;
++                }
++        ).collect(Collectors.toList());
+ 
+-        if (items.size() != itemsToBeOrdered.size()) {
++        if(items.size() != itemsToBeOrdered.size()) {
+             throw new NoProductFoundException();
+         }
+ 
+@@ -78,15 +76,4 @@ public class OrderService {
+         order.setId((int) orderId);
+         return orderMapper.toDto(order, itemsToBeOrdered);
+     }
+-
+-    @Transactional
+-    public long cancelOrder(Integer orderId) {
+-        Optional<Order> order = orderRepository.findOrderById(orderId);
+-        if (order.isPresent()) {
+-            Order o = order.get();
+-            o.setStatus(Status.CANCELLED);
+-            return orderRepository.save(o);
+-        }
+-        throw new RuntimeException("Order not found");
+-    }
+ }

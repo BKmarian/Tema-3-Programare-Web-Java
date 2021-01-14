@@ -1,0 +1,17 @@
+diff a/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java b/lab10/src/main/java/com/example/lab10/repository/OrderRepository.java	(rejected hunks)
+@@ -1,15 +1,12 @@
+ package com.example.lab10.repository;
+ 
+ import com.example.lab10.model.Order;
+-import org.springframework.dao.EmptyResultDataAccessException;
+-import org.springframework.data.repository.query.Param;
+ import org.springframework.jdbc.core.JdbcTemplate;
+ import org.springframework.jdbc.support.GeneratedKeyHolder;
+ import org.springframework.jdbc.support.KeyHolder;
+ import org.springframework.stereotype.Repository;
+ 
+ import java.sql.PreparedStatement;
+-import java.util.Optional;
+ 
+ @Repository
+ public class OrderRepository {
